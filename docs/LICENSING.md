@@ -31,3 +31,8 @@
 - Turbo SHA256: `5ff4a12c8b4599fec716e1b15a45e504e0d1129111896bdcde5ac4a15e395b29`
 
 H3本文SHA256：`59b99642b95ea21630e311198ddbfffbfe05aadba0c2f5d884cbdf4efcc90f44`。同梱本文には改変を加えていません。
+
+
+## R2Vの追加配布物
+
+ModelTC固定commit `02e26d591f7a04d5d1a074c9566d5dd4f22f6225` の3ソースとLICENSEを `vendor/modeltc` に原文で保持。Apache-2.0、manifestに不変URL・SHA256を収録。実行には当該ソースの承認を必要とする。Diffusers固定commit `85c9fa4caee33d1c5b473395784471d2d7957c1b`、PEFT0.21.2、Accelerate1.15.0もApache-2.0。Ref LoRAはLightX2V固定revision `3ec17a324ced54151364f24f8b5fb6bf7e26414f`、配布メタデータApache-2.0。H3由来の利用条件は継続し、H3ライセンス・AUP・利用資格の本人判断を省略しない。重み・外部バイナリは同梱しない。実機で使った67依存lockの固定は各上流のライセンスを変更しない。

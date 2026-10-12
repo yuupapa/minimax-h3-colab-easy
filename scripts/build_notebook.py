@@ -12,7 +12,7 @@ def build():
 
 **クラウドGPU専用。Macへモデルをインストールしません。** 公式H3 FL2VA + LightX2V Turbo v0.1 4-step。モデルを1回読み込み、1〜2本を順に生成します。公開H3 Baseを利用し、API専用フル2K機能は含みません。
 
-**対応状況:** 開発版と配布版でText-to-VideoのGPU生成・保存・終了を実測。Image-to-Videoは始点画像1枚のアップロード・正規化・保存をCPUのColabで確認しました。始点画像1枚・5秒・動画1本のGPU生成・保存・GPU終了を実測しました。Reference-to-Videoは別重みと互換性検証が必要なため、この候補では実行しません。
+**対応状況:** 開発版と配布版でText-to-VideoのGPU生成・保存・終了を実測。Image-to-Videoは始点画像1枚のアップロード・正規化・保存をCPUのColabで確認しました。始点画像1枚・5秒・動画1本のGPU生成・保存・GPU終了を実測しました。Reference-to-Videoは独立したMiniMax_H3_R2V_720p_Colab.ipynbで実行します。このT2V/I2Vノートブックでは実行しません。
 
 I2VはフォームのGENERATION_MODEをImage-to-Videoへ変更し、権利・写った人物の同意・元画像（EXIF等を含む）のGoogle Colab送信を確認してIMAGE_USE_CONFIRMEDをオンにします。UPLOAD_FIRST_FRAMEをオンにして入力セルだけ実行し、画像を1枚選択。表示を確認してIMAGE_CONTENT_CONFIRMEDをオン、UPLOAD_FIRST_FRAMEをオフにして入力セルだけ再実行してください。元画像と正規化PNGはクラウドVMにだけ保管し、VM削除で消えます。画像は出力ZIPへ同梱せず、DriveやGitHubへ自動保存しません。PROMPTには動き・カメラ・音の指示を入れます。現在の出力は16:9固定なので横長16:9の画像から始めてください。新規アップロード直後は「すべてのセルを実行」でも画像確認で必ず停止します。
 
@@ -35,7 +35,7 @@ H3 Community LicenseにはEU・英国・韓国・米国を除外する利用地�
 LICENSE_ACCEPTED = False #@param {type:"boolean"}
 ELIGIBLE_USE_CONFIRMED = False #@param {type:"boolean"}
 PROMPT = "A ginger cat slowly walks across a wooden porch in warm morning sunlight, then pauses and looks toward the camera. A steady realistic shot. Soft outdoor ambience. No speech, music, text or logos." #@param {type:"string"}
-GENERATION_MODE = "Text-to-Video" #@param ["Text-to-Video","Image-to-Video","Reference-to-Video (準備中)"]
+GENERATION_MODE = "Text-to-Video" #@param ["Text-to-Video","Image-to-Video","Reference-to-Video (別ノートブック)"]
 IMAGE_USE_CONFIRMED = False #@param {type:"boolean"}
 IMAGE_CONTENT_CONFIRMED = False #@param {type:"boolean"}
 UPLOAD_FIRST_FRAME = False #@param {type:"boolean"}
@@ -62,7 +62,7 @@ if not (_is_colab and platform.system()=='Linux' and Path('/content').is_dir()):
 if not LICENSE_ACCEPTED or not ELIGIBLE_USE_CONFIRMED:
     raise RuntimeError('H3ライセンス全文と利用地域・条件を本人が確認し、2つの欄をオンにしてください。')
 if GENERATION_MODE not in ('Text-to-Video','Image-to-Video'):
-    raise RuntimeError('Reference-to-Videoは別重みと実機検証が必要です。この候補ではまだ実行しません。')
+    raise RuntimeError('Reference-to-Videoは別のMiniMax_H3_R2V_720p_Colab.ipynbを使用してください。このノートブックはT2V/I2V専用です。')
 if GENERATION_MODE=='Image-to-Video' and (not IMAGE_USE_CONFIRMED or VIDEO_COUNT!=1):
     raise RuntimeError('I2V候補は画像1枚・動画1本です。画像の権利・人物の同意・Google Colabへの元画像送信（EXIF等を含む）を本人が確認してください。')
 '''
@@ -162,7 +162,7 @@ else:
 
 同じVMで再開すると取得済みファイルは再利用されます。生成済みの同じ入力は追加生成せず既存出力を使います。新しい文章で生成するには保存後にNEW_RUNをオンにして入力セルを実行します。その許可は生成セルで1回だけ消費し、失敗時も消費済みです。再試行は診断・保存後に本人が許可し、入力セルを再実行して明示的に設定し直してください。フォーム再実行は許可を再設定する操作です。読込は1回の生成セルの間で共有し、そのセルが終わるとモデルプロセスを終了します。VM削除後は導入・取得からやり直します。
 
-**検証範囲:** 配布版T2Vを2026-10-11、I2Vを2026-10-12に、A100 80GB・RAM167.05GB、各5秒・544p・4-step・動画1本で実測。T2Vは初期化199.132秒／生成92.688秒、I2Vは初期化205.243秒／生成106.352秒。どちらも960×544・24fps・124フレーム（約5.17秒）、ZIP保存・映像音声の全編デコード・GPU使用率0・稼働0件を確認しました。I2Vは画像表示後の内容確認と、保存確認後に終了セルを再実行するGPU終了も確認済みです。タイマー満了による自動終了、6秒、別GPU、高解像度は未実測。R2Vは未実装、解像度は544p・16:9固定でネイティブ1080p不可です。速度・CU・品質や人物・商品形状の完全維持は保証しません。
+**検証範囲:** 配布版T2Vを2026-10-11、I2Vを2026-10-12に、A100 80GB・RAM167.05GB、各5秒・544p・4-step・動画1本で実測。T2Vは初期化199.132秒／生成92.688秒、I2Vは初期化205.243秒／生成106.352秒。どちらも960×544・24fps・124フレーム（約5.17秒）、ZIP保存・映像音声の全編デコード・GPU使用率0・稼働0件を確認しました。I2Vは画像表示後の内容確認と、保存確認後に終了セルを再実行するGPU終了も確認済みです。タイマー満了による自動終了、6秒、別GPU、高解像度は未実測。R2Vは別ノートブックです。このノートブックの解像度は544p・16:9固定でネイティブ1080p不可です。速度・CU・品質や人物・商品形状の完全維持は保証しません。
 '''
     sources=[('markdown',intro),('code',bootstrap),('code',setup),('code',generate),('code',save),('code',stop),('markdown',ending)]
     cells=[]

@@ -1,3 +1,5 @@
+> R2Vは独立ノートブックで1本の実機試験が完了しました。実測・統合差分・未検証の終了補助は[R2V_VALIDATION](R2V_VALIDATION.md)を参照。この文書のT2V/I2V条件は維持しています。
+
 # 配布版の検証記録
 
 2026-10-12時点。配布版でT2V1本、I2V1本のクリーンColab GPU生成・端末保存・映像音声の全編デコード・GPU終了を確認しました。33項目のローカルテストが成功。全ての環境や初心者の100%成功を保証しません。
@@ -43,12 +45,12 @@ python3 -m unittest discover -s tests -v
 
 33項目のテストで、クラウド限定ガード、本人の利用条件確認、本数・秒数・CU入力、同VMの期限延長禁止、旧タイマー維持、処理順、中断時の子プロセス終了、失敗時の準備状態取消、重複生成防止、NEW_RUN許可の1回消費、古い保存チェックによる自動終了の拒否、I2V画像ハッシュ・管理パス・確認ゲート、R2Vの取得前停止を確認しました。
 
-配布は22テキストファイル。全5コードセルの構文、出力・実行回数・個人メタデータなし、埋め込んだコード・依存とrepoの一致、固定revisionとH3ライセンス本文のSHA256、モデル読込がリクエストループの外で1か所だけであることを確認しました。GPU試験後の生成・アップロード・停止コードと依存は変更していません。説明文だけを結果に合わせて更新しました。
+このT2V/I2V旧版試験時の配布は22テキストファイル。全5コードセルの構文、出力・実行回数・個人メタデータなし、埋め込んだコード・依存とrepoの一致、固定revisionとH3ライセンス本文のSHA256、モデル読込がリクエストループの外で1か所だけであることを確認しました。GPU試験後の生成・アップロード・停止コードと依存は変更していません。説明文だけを結果に合わせて更新しました。
 
 ## 解像度・未検証範囲
 
 現キットはshort_edge=544・16:9固定で、出力960×544です。解像度選択機能はありません。固定SGLangは面積上限で縮小し32倍数へ丸めるため、720指定は1280×704、1080指定も1344×768になります。**ネイティブ1920×1080生成はできません。** 明示width/heightを足してもこの経路では上限を回避しません。[固定resolver](https://github.com/sgl-project/sglang/blob/448759b2358eb38e2a244fbe7d5a293a69dd314c/python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/resolved_plan.py#L103)、[寸法上書き](https://github.com/sgl-project/sglang/blob/448759b2358eb38e2a244fbe7d5a293a69dd314c/python/sglang/multimodal_gen/runtime/pipelines_core/stages/model_specific_stages/minimax_h3/prequeue.py#L310)
 
-高解像度の速度・CU、6秒、他GPU、scratch無しの代替保存先、40本、R2Vは未実機検証です。I2Vは始点画像から動かす機能で、意味的な参照画像を別場面へ持ち込むR2Vではありません。R2Vは別Ref2VA重みが必要で未実装。[追加範囲](MULTIMODAL.md)と[R2V案](R2V_OPTIONS.md)を参照してください。
+T2V/I2Vの高解像度の速度・CU、6秒、他GPU、scratch無しの代替保存先、40本は未実機検証です。I2Vは始点画像から動かす機能で、意味的な参照画像を別場面へ持ち込むR2Vではありません。EasyではR2Vを実行せず、別Ref2VA重みを使う専用ノートブックへ案内します。独立R2V1例の結果は[R2V_VALIDATION](R2V_VALIDATION.md)。[追加範囲](MULTIMODAL.md)と[R2V案](R2V_OPTIONS.md)を参照してください。
 
 GPU割当や法的利用資格はテストで保証できません。H3の利用地域・商用条件・AUPは本人が確認し、VM所在地の保証として確認欄を解釈しません。

@@ -15,3 +15,12 @@ uv is distributed by Astral under MIT OR Apache-2.0.
 Qwen3-VL is identified by the H3 license as Apache-2.0.
 Third-party dependencies retain their upstream licenses and notices.
 This repository does not redistribute their binaries or model weights.
+
+R2V addition: ModelTC/Minimax-H3-Turbo revision 02e26d591f7a04d5d1a074c9566d5dd4f22f6225.
+Unmodified inference_minimax_h3.py, minimax_h3_ref2va_pipeline.py, resolution_util.py
+and LICENSE are preserved under vendor/modeltc; Apache License 2.0.
+Source URLs and checksums: vendor/modeltc/manifest.json.
+Diffusers 85c9fa4caee33d1c5b473395784471d2d7957c1b, PEFT 0.21.2, Accelerate 1.15.0:
+Hugging Face, Apache License 2.0. Their binaries are not bundled.
+Ref Turbo lightx2v/Minimax-h3-Turbo revision 3ec17a324ced54151364f24f8b5fb6bf7e26414f
+is not bundled; repository metadata Apache-2.0; H3 license conditions also apply.

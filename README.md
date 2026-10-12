@@ -2,7 +2,7 @@
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/MiniMax_H3_Easy_Colab.ipynb)
 
-MiniMax H3で文章から動画、または始点画像から動画を作るための、Google Colab用セットアップキットです。Claude・CodexなどのAIへこのURLを渡し、READMEと[AGENTS.md](AGENTS.md)に沿って操作を依頼できます。ブラウザ操作機能がないAIの場合は、本人がColabで手動実行してください。
+MiniMax H3で文章・始点画像・参照画像から動画を作るための、Google Colab用セットアップキットです。Claude・CodexなどのAIへこのURLを渡し、READMEと[AGENTS.md](AGENTS.md)に沿って操作を依頼できます。ブラウザ操作機能がないAIの場合は、本人がColabで手動実行してください。
 
 **Macへモデル、Python、uv、Gitを入れる必要はありません。** モデルと依存はColabのクラウドVMへ取得します。Googleへの本人ログイン、対応GPUと既存CU、ライセンス・利用条件の確認は必要です。URLだけで全環境の完全自動動作を保証するものではありません。
 
@@ -12,10 +12,20 @@ MiniMax H3で文章から動画、または始点画像から動画を作るた�
 |---|---|
 | Text-to-Video | 配布版で5秒1本のGPU生成・保存・全編デコード・GPU終了を確認 |
 | Image-to-Video | 始点画像1枚＋動きの文章。配布版で5秒1本のGPU生成・保存・全編デコード・GPU終了を確認 |
-| Reference-to-Video | 未対応。別Ref2VA重みと互換性検証が必要。選択すると取得前に停止 |
-| 解像度・秒数 | **960×544、16:9固定。解像度選択なし。** 5秒を実測。6秒は設定可能だが未実測 |
+| Reference-to-Video | 独立した[720p R2Vノートブック](MiniMax_H3_R2V_720p_Colab.ipynb)。Ref2VAで1枚・5秒・1本を実機確認 |
+| 解像度・秒数 | T2V/I2Vは960×544固定。R2Vは1280×736生成→上下8px crop→1280×720納品。5秒指定で実測、6秒・他構成は未実測 |
 
-公開H3 BaseのFL2VAとLightX2V Turbo v0.1の4-step構成です。H3 API専用のフル2K機能は含みません。**ネイティブ1920×1080生成はできません。** 固定SGLangでは720指定も1280×704、1080指定も1344×768になります。現在はその選択機能もありません。[寸法と検証範囲](docs/VALIDATION.md)
+T2V/I2Vは公開H3 BaseのFL2VAとLightX2V Turbo v0.1の4-step構成です。H3 API専用のフル2K機能は含みません。**ネイティブ1920×1080生成はできません。** 固定SGLangでは720指定も1280×704、1080指定も1344×768になります。現在はその選択機能もありません。[寸法と検証範囲](docs/VALIDATION.md)
+
+## Reference-to-Videoを使う場合
+
+[MiniMax_H3_R2V_720p_Colab.ipynb](MiniMax_H3_R2V_720p_Colab.ipynb)をColabへアップロードして使います。公開反映後の[Colab入口](https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/MiniMax_H3_R2V_720p_Colab.ipynb)。T2V/I2Vとは**別のColab VM・venv・モデルcache**を使用してください。既存EasyノートブックのR2V選択肢は別入口の案内だけで、そこでR2Vを生成しません。
+
+Ref2VAへ人物・物体の意味的参照を渡し、プロンプトの `<Picture 1>` と対応させます。始点構図から動かすI2Vとは別です。参照1枚・動画1本・5秒のみ。ModelTC固定ソース実行、H3条件、画像送信・内容/向き、今回のCU予算を本人が確認し、必要な承認をGPU割当前に済ませます。画像の新規アップロード直後は必ず表示確認で停止します。入力前の接続経過分をフォームへ入れ、実際の生成文章を照合します。
+
+A10080GBで参照処理・推論・復号合計**180.00秒**、124フレーム・24fps・コンテナ**5.175秒**を実測。生成1280×736を上下8pxずつcropし、拡大せず1280×720へ保存します。模様・体格・足に変化があり、見た目の完全一致は保証しません。参照LoRAは544p学習で、720p近傍はこの1本のみの実測です。[実測・未検証範囲](docs/R2V_VALIDATION.md)
+
+**保存後/失敗時は必ず「ランタイム → ランタイムを接続解除して削除」を実行し、使用率0・稼働0を確認してください。** 新しいR2V終了補助セルと期限満了終了はGPU未検証。補助は既定で無効で、停止確認の唯一の根拠にしません。統合候補で加えた固定lock同期・経過時間補正はオフライン検査のみです。
 
 ## AIへ渡す依頼文
 
@@ -62,13 +72,17 @@ Google AI Proの200CCU特典には年齢、ファミリー管理者、試用契�
 
 ## 再開と安全な保存
 
-同じ入力の完了済み動画は再生成せず既存ファイルを返します。新しい文章や失敗後の再試行は、保存と診断後に本人が許可し、`NEW_RUN` をオンにして入力セルを実行。許可は生成セルで1回だけ消費されます。失敗しても自動再試行しません。最大2本を同じ生成セル内で順に生成する経路がありますが、配布版の実測は1本ずつです。
+R2Vは同じ入力の完了済み出力だけを再利用します。失敗・変更入力の同じVMでの再生成は止め、新しい試験判断を待ちます。
+
+T2V/I2Vでは、同じ入力の完了済み動画は再生成せず既存ファイルを返します。新しい文章や失敗後の再試行は、保存と診断後に本人が許可し、`NEW_RUN` をオンにして入力セルを実行。許可は生成セルで1回だけ消費されます。失敗しても自動再試行しません。最大2本を同じ生成セル内で順に生成する経路がありますが、配布版の実測は1本ずつです。
 
 元画像と正規化PNGはクラウドVMにだけ保存され、VM削除で消えます。元画像にはEXIF等が含まれ得ます。画像を出力ZIPへ自動同梱せず、Drive・GitHub・Libraryへ自動公開しません。プロンプト・動画等を別の保存先へ送る場合は、その内容と送信先の許可を確認してください。
 
 ## バージョンとライセンス
 
-H3 revision `42ed227ee7df40d41602854ae760620d6eb651fe`、SGLang commit `448759b2358eb38e2a244fbe7d5a293a69dd314c`、Turbo revision `797b284f774ff0bda805f7dd5917624670d5c4e0` を固定。Turbo SHA256を照合します。234実行時依存と5ビルド依存を固定し、Python3.12、uv0.13.0を使用します。Colab OS、Pythonパッチ版、GPUドライバは完全固定ではなく、wheelハッシュ付きlockでもありません。
+H3 revision `42ed227ee7df40d41602854ae760620d6eb651fe`、SGLang commit `448759b2358eb38e2a244fbe7d5a293a69dd314c`、Turbo revision `797b284f774ff0bda805f7dd5917624670d5c4e0` を固定。Turbo SHA256を照合します。T2V/I2Vの234実行時依存と5ビルド依存を固定し、Python3.12、uv0.13.0を使用します。Colab OS、Pythonパッチ版、GPUドライバは完全固定ではなく、wheelハッシュ付きlockでもありません。
+
+R2Vは実機使用の67依存lock、固定Diffusers commit、Ref専用LoRAを別に保持します。モデル取得前のAPI検査、原寸/納品の全デコード、1本の重複防止を行います。ソースとライセンスは[案内](docs/R2V_OPTIONS.md)へ。
 
 独自コード・文章は[MIT](LICENSE)。H3は[Community License](licenses/MINIMAX-H3-COMMUNITY.txt)、Turbo・SGLang等の条件は[NOTICE](NOTICE)と[ライセンス案内](docs/LICENSING.md)に記載しています。モデル重み・外部バイナリは配布しません。
 

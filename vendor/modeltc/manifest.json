@@ -1,0 +1,26 @@
+[
+  {
+    "path": "LICENSE",
+    "url": "https://raw.githubusercontent.com/ModelTC/Minimax-H3-Turbo/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "bytes": 11357
+  },
+  {
+    "path": "inference_minimax_h3.py",
+    "url": "https://raw.githubusercontent.com/ModelTC/Minimax-H3-Turbo/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/inference_minimax_h3.py",
+    "sha256": "a77bc604b26a711efab66e804b517957bb10a00d1cb1e2a4a556ab4854c0dffd",
+    "bytes": 44355
+  },
+  {
+    "path": "minimax_h3_ref2va_pipeline.py",
+    "url": "https://raw.githubusercontent.com/ModelTC/Minimax-H3-Turbo/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/minimax_h3_ref2va_pipeline.py",
+    "sha256": "7d9fcd0f9bb102b49c871f84939729e358573e0934e0b39eaef7f9c3d652e9d4",
+    "bytes": 10562
+  },
+  {
+    "path": "resolution_util.py",
+    "url": "https://raw.githubusercontent.com/ModelTC/Minimax-H3-Turbo/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/resolution_util.py",
+    "sha256": "91ed96b6745d68c41848ea436704fb160ef33198aaacc524f059e563538c6314",
+    "bytes": 3290
+  }
+]
