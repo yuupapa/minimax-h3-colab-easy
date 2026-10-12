@@ -1,6 +1,13 @@
 # MiniMax H3をColabで動かすAIセットアップキット
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/MiniMax_H3_Easy_Colab.ipynb)
+[▶ T2V / I2V・720pをColabで開く](https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/MiniMax_H3_T2V_I2V_720p_DEV_Colab.ipynb)
+
+1. 既存のGoogleアカウントでログインし、モデルの利用条件・今回の1本とCU上限を確認します。
+2. A100・ハイメモリへ接続し、実際の残CU・CU/時・接続経過分を入力します。
+3. 入力 → セットアップ → 生成 → ZIP保存。I2Vは画像を選び、表示内容を確認して入力セルだけ再実行します。
+4. 保存後・失敗時は **「ランタイム → ランタイムを接続解除して削除」**。使用率0・稼働0を確認します。
+
+必要な環境とモデルはセットアップセルがColab内に準備します。Macへ大容量モデルを入れません。まず1モード・5秒・1本から始めてください。既定UIと同VM切替の検証限界は下記に明記しています。
 
 MiniMax H3で文章・始点画像・参照画像から動画を作るための、Google Colab用セットアップキットです。Claude・CodexなどのAIへこのURLを渡し、READMEと[AGENTS.md](AGENTS.md)に沿って操作を依頼できます。ブラウザ操作機能がないAIの場合は、本人がColabで手動実行してください。
 
@@ -42,14 +49,14 @@ A10080GBで参照処理・推論・復号合計**180.00秒**、124フレーム�
 ## AIへ渡す依頼文
 
 ```text
-このリポジトリのREADMEとAGENTS.mdを読んで、Google ColabでMiniMax H3をセットアップしてください。MacやローカルPCへモデルを取得せず、追加購入・新規有料契約・自動課金・Drive全体マウントをしないでください。既存CUを確認し、上限3CUを目安にまず5秒動画を1本だけ作ってください。ログインや規約・ライセンスの判断は本人へ引き継ぎ、必要な実行・送信権限を確認してください。動画を端末へ保存して全編デコードと品質を確認し、最後にGPUを削除して残CU・使用率0・稼働0件を報告してください。
+このリポジトリのREADMEとAGENTS.mdを読んで、Google ColabでMiniMax H3をセットアップしてください。MacやローカルPCへモデルを取得せず、追加購入・新規有料契約・自動課金・Drive全体マウントをしないでください。720pのFL2VA入口を使い、既存CUと今回の上限を本人と確認して、まず1モードの5秒動画を1本だけ作ってください。ログインや規約・ライセンスの判断は本人へ引き継ぎ、必要な実行・送信権限を確認してください。動画を端末へ保存して全編デコードと品質を確認し、最後にGPUを削除して残CU・使用率0・稼働0件を報告してください。
 ```
 
 画像から作る場合は、使う画像とColabへの送信許可を具体的に追加してください。40本の一括生成はこの依頼文にも本キットの初回作業にも含みません。
 
 ## 初めて使う人の操作
 
-1. 上の「Open in Colab」を開き、既存のGoogleアカウントでログインします。ローカルのノートブックから使う場合は「ファイル → ノートブックをアップロード」で `MiniMax_H3_Easy_Colab.ipynb` を選びます。この1ファイルは自己完結しています。
+1. Easy544pの[Colab入口](https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/MiniMax_H3_Easy_Colab.ipynb)を開き、既存のGoogleアカウントでログインします。ローカルのノートブックから使う場合は「ファイル → ノートブックをアップロード」で `MiniMax_H3_Easy_Colab.ipynb` を選びます。この1ファイルは自己完結しています。
 2. H3の[ライセンス全文](licenses/MINIMAX-H3-COMMUNITY.txt)と[利用条件の案内](docs/LICENSING.md)を読みます。今回の利用地域・商用条件・Acceptable Use Policyを本人が確認し、`LICENSE_ACCEPTED` と `ELIGIBLE_USE_CONFIRMED` をオンにします。
 3. 「ランタイムのタイプを変更」でA100・ハイメモリを選び、接続します。実際に**VRAM80GB、システムRAM約167GB**が割り当てられたことと残CU・CU/時をリソース画面で確認します。フォームの `CU_REMAINING` と `CU_PER_HOUR` に実際の表示を入れます。初回は1本・5秒、`CU_BUDGET=3`が目安です。
 4. T2Vなら文章を入力し、入力→セットアップ→生成→ZIP保存の順で実行します。セットアップの `SETUP_OK` を待ってから生成してください。入力後の「すべてのセルを実行」も使えます。終了セルは初回に保存確認で停止します。
