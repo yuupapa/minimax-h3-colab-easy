@@ -1,0 +1,17 @@
+Powered by MiniMax H3
+
+MiniMax H3 is licensed under the MiniMax H3 Community License Agreement,
+Copyright © 2026 MiniMax. All Rights Reserved.
+
+Model weights are NOT included in this repository. Users retrieve fixed
+revisions from the official MiniMaxAI distribution after their own license
+acceptance and confirmation of applicable territory and acceptable use.
+Read licenses/MINIMAX-H3-COMMUNITY.txt, including Exhibit A, in full.
+
+The optional Turbo adapter is from lightx2v/Minimax-h3-Turbo. Its Hugging Face
+model card declares Apache-2.0. This does not remove the underlying H3 license.
+SGLang is distributed by sgl-project under Apache-2.0.
+uv is distributed by Astral under MIT OR Apache-2.0.
+Qwen3-VL is identified by the H3 license as Apache-2.0.
+Third-party dependencies retain their upstream licenses and notices.
+This repository does not redistribute their binaries or model weights.

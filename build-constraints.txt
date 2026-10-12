@@ -1,0 +1,6 @@
+# Fixed official-registry build tools, checked 2026-10-11. New pinning is not GPU-retested.
+setuptools==84.0.0
+torch==2.14.1
+setuptools-rust==1.13.0
+setuptools-scm==10.3.4
+wheel==0.48.0

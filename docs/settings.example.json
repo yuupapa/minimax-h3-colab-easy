@@ -1,0 +1,17 @@
+{
+  "license_accepted": false,
+  "eligible_use_confirmed": false,
+  "prompts": [
+    "A ginger cat walks across a wooden porch in warm sunlight. A steady realistic shot, gentle outdoor ambience. No speech, music, text or logos."
+  ],
+  "count": 1,
+  "seconds": 5,
+  "seed": 42,
+  "cu_remaining": 0,
+  "cu_rate": 0,
+  "cu_budget": 3,
+  "mode": "t2v",
+  "image_use_confirmed": false,
+  "image_content_confirmed": false,
+  "first_frame": null
+}
