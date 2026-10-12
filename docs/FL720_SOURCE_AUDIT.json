@@ -1,0 +1,119 @@
+{
+  "status": "t2v_i2v_core_separate_clean_vms_validated_default_ui_shared_switch_unverified",
+  "verified_date": "2026-10-12",
+  "modeltc_revision": "02e26d591f7a04d5d1a074c9566d5dd4f22f6225",
+  "modeltc_spec_url": "https://github.com/ModelTC/Minimax-H3-Turbo/blob/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/README.md",
+  "diffusers_revision": "85c9fa4caee33d1c5b473395784471d2d7957c1b",
+  "base_revision": "42ed227ee7df40d41602854ae760620d6eb651fe",
+  "base_url": "https://huggingface.co/MiniMaxAI/MiniMax-H3/tree/42ed227ee7df40d41602854ae760620d6eb651fe",
+  "selected_component_prefixes": [
+    "transformer/",
+    "text_encoder/",
+    "processor/",
+    "tokenizer/",
+    "vae/",
+    "audio_vae/",
+    "scheduler/",
+    "audio_scheduler/"
+  ],
+  "selected_components_metadata_bytes": 144051137140,
+  "inactive_transformer_ref_not_downloaded": true,
+  "lora_revision": "3ec17a324ced54151364f24f8b5fb6bf7e26414f",
+  "lora_file": "minimax_h3_fl2v_turbo_4step_v1.0_768p_bf16.safetensors",
+  "lora_sha256": "1bdabc2e9fce20b1db563b96bcf6e46adcad4c1964f423676436bf266cc7416c",
+  "lora_bytes": 1383677808,
+  "lora_url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/blob/3ec17a324ced54151364f24f8b5fb6bf7e26414f/minimax_h3_fl2v_turbo_4step_v1.0_768p_bf16.safetensors",
+  "lora_format": "Diffusers BF16, not ComfyUI",
+  "lora_metadata_license": "apache-2.0",
+  "base_license_conditions_retained": true,
+  "lora_training_size": [
+    1344,
+    768
+  ],
+  "video_shift": 6.0,
+  "audio_shift": 3.0,
+  "nfe": 4,
+  "sigma_grid_points": 5,
+  "lora_alpha": 8,
+  "lora_scale": 1.0,
+  "fuse_lora": false,
+  "native": [
+    1280,
+    736
+  ],
+  "delivery": [
+    1280,
+    720
+  ],
+  "filter": "crop=1280:720:0:8,setsar=1",
+  "actual_lora_bytes_downloaded_and_hash_verified": true,
+  "environment_api_import_gpu_tested_for_fl720": true,
+  "shared_67_dependency_lock_sha256": "57d89223bdebf8f7ab0de2bdc8fc1c7ff8b52e9987aa477c2646184ea6b4670b",
+  "model_load_processes": 2,
+  "max_outputs_per_mode": 1,
+  "proposed_single_vm_total_cu": 5.0,
+  "model_load_processes_planned": 2,
+  "model_load_processes_actual": 2,
+  "gpu_tested_modes": [
+    "t2v",
+    "i2v"
+  ],
+  "i2v_gpu_tested": true,
+  "shared_switch_gpu_tested": false,
+  "default_notebook_ui_gpu_tested": false,
+  "environment_and_weight_download_phases_actual": 2,
+  "actual_trial_vms": 2,
+  "actual_outputs_per_mode": 1,
+  "shared_vm_t2v_i2v_designed": true,
+  "planned_environment_and_weight_download_phases": 1,
+  "measured_core_trials": {
+    "t2v": {
+      "native_size": [
+        1280,
+        736
+      ],
+      "conditioning_denoise_decode_seconds": 215.3059565120002,
+      "load_seconds": 9.679413910000221,
+      "native_encode_seconds": 9.786313051999969,
+      "transformer_evaluations": 4,
+      "cuda_peak_allocated_gib": 70.8887529373169,
+      "cuda_peak_reserved_gib": 73.57421875,
+      "process_peak_rss_gib": 141.47661590576172,
+      "delivery_size": [
+        1280,
+        720
+      ],
+      "frames": 124,
+      "fps": 24,
+      "container_seconds": 5.175,
+      "full_decode_passed": true,
+      "saved_local": true,
+      "menu_shutdown_rate0_active0": true
+    },
+    "i2v": {
+      "native_size": [
+        1280,
+        736
+      ],
+      "conditioning_denoise_decode_seconds": 182.1192455810001,
+      "load_seconds": 10.002918889000057,
+      "native_encode_seconds": 8.713670417999992,
+      "transformer_evaluations": 4,
+      "cuda_peak_allocated_gib": 76.52005577087402,
+      "cuda_peak_reserved_gib": 78.623046875,
+      "process_peak_rss_gib": 77.09317779541016,
+      "delivery_size": [
+        1280,
+        720
+      ],
+      "frames": 124,
+      "fps": 24,
+      "container_seconds": 5.175,
+      "full_decode_passed": true,
+      "saved_local": true,
+      "menu_shutdown_rate0_active0": true
+    }
+  },
+  "trial_image_upload_ui": "I2V used standard Files pane plus bounded original normalization core in a temporary private cell; default outputframe chooser not GPU-tested",
+  "qualitative_limits": "T2V background/fur softness; I2V tail-tip edge clipping/detail changes; real-time fine motion and subjective audio not assessed"
+}

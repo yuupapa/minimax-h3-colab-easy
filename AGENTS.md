@@ -97,3 +97,13 @@ python3 -m unittest discover -s tests -v
 ```
 
 Preserve the tested native configuration unless a change is justified and reviewed. Do not remove consent, cloud-only, count, budget, process-cleanup, duplicate-run or GPU-stop safeguards. Rebuild the notebook after changing scripts or requirements. Do not include `.ipynb` execution output, weights, test videos, user prompts/settings, credentials, account IDs, personal Drive URLs or local personal paths in a release. GPU revalidation requires an explicit authorized purpose and CU budget.
+
+## FL2VA T2V/I2V 720p route
+
+Use MiniMax_H3_T2V_I2V_720p_DEV_Colab.ipynb for the separate Diffusers/FL2VA route. Read docs/FL720_CANDIDATE.md and docs/FL720_SOURCE_AUDIT.json. T2V and I2V each passed one core GPU trial in separate clean VMs, durable saving/full decode and menu shutdown. Preserve previous Easy544p and R2V runtime bytes. FL Turbo4-step v1.0 BF16768p, shift6/3, alpha8/scale1, active transformer (not transformer_ref), fixed67dependency lock, native1280x736 cropped8px top/bottom to1280x720. Never claim API-only full2K/native1080p/fastest benchmark.
+
+Approvals, prompts and CU inputs must be prepared before allocating GPU; verify displayed source and actual generated prompt, not only filled browser form values. Setup itself requires Colab cloud GPU/RAM/disk checks; never install/download on Mac or claim disconnected setup complete. No Drive mount or persistent cache by default. Files sidebar can auto-connect while disconnected: never open it while GPU start is prohibited.
+
+T2V/I2V core tests and distribution defaults are separate: private prefilled notebook parameters were used; I2V upload-browser workaround, if any, must be disclosed. SameVM mode switch and expiry shutdown remain GPU-unverified. Each approved mode gets one attempt; save its exactmode/runID ZIP before switching. Absolute budget/deadlines cannot extend on mode switch, rerun, reconnect or a vanished state. Include idle/image/save time and delayed billing in the total ledger. On any interruption, error or budget boundary, delete runtime using the menu and verify live rate0/active0; publishing/Library actions happen afterward.
+
+FL720 T2V/I2V measured conditioning/denoise/decode215.306/182.119s, load9.679/10.003s, encode9.786/8.714s;124frames24fps/container5.175s. Background/fur softness is visible; real-time motion/fine limbs/audio聴感 are not established. No guarantee for another image. I2V source composition/cat/porch and walking/pause/head turn were observed, with tail-tip edge clipping and possible fine detail changes. Claim only these two measured core cases; do not upgrade default UI, shared switching or audio聴感 to tested.
