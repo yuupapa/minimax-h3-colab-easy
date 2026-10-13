@@ -10,6 +10,7 @@ import struct
 import time
 import uuid
 import zipfile
+import serial_queue as serial
 
 KIT = Path(__file__).resolve().parent.parent
 # Isolated module instance: never mutate the published workflow's globals.
@@ -21,6 +22,7 @@ guard.SCRATCH = Path('/mnt/local-scratch/h3-r2v-dev') if Path('/mnt/local-scratc
 guard.VENV = guard.ROOT/'venv'
 guard.STATE = guard.ROOT/'state.json'
 guard.KIT = KIT
+serial.install_budget_policy(guard)
 WorkflowError = guard.WorkflowError
 BASE_REV = '42ed227ee7df40d41602854ae760620d6eb651fe'
 DIFFUSERS_REV = '85c9fa4caee33d1c5b473395784471d2d7957c1b'
@@ -41,8 +43,9 @@ PROFILES = {
 
 def budget_settings(settings):
     # Reuse ONLY the budget validator; the model task is built separately below.
-    return {k:settings[k] for k in ('license_accepted','eligible_use_confirmed','prompts','count','seconds',
+    result = {k:settings[k] for k in ('license_accepted','eligible_use_confirmed','prompts','count','seconds',
                                   'seed','cu_remaining','cu_rate','cu_budget')}
+    return dict(result, count=1, prompts=[settings['prompts'][0]])
 
 
 def validate(settings, *, with_reference=True):
@@ -50,15 +53,16 @@ def validate(settings, *, with_reference=True):
               'image_use_confirmed'):
         if settings.get(k) is not True:
             raise WorkflowError(f'{k}: 本人の確認が必要です。GPU未承認では実行しません。')
-    if settings.get('count') != 1 or isinstance(settings.get('count'), bool) or settings.get('seconds') != 5:
-        raise WorkflowError('このR2V試験は静止参照1枚、動画1本、指定5秒だけです。')
+    serial.validate_count(settings, WorkflowError)
+    if settings.get('seconds') != 5:
+        raise WorkflowError('R2Vは1キューの静止参照1枚、指定5秒です。')
     if settings.get('profile') not in PROFILES:
         raise WorkflowError('未対応の解像度です。720は納品寸法であり生成寸法と区別します。')
     base=guard.validate_inputs(budget_settings(settings))
     elapsed=settings.get('gpu_minutes_before_input',0.0)
     if isinstance(elapsed,bool) or not isinstance(elapsed,(int,float)) or not 0<=elapsed<float('inf'):
         raise WorkflowError('入力前のGPU接続経過分は0以上の有限な分数を入力してください。')
-    if '<Picture 1>' not in base['prompts'][0] or re.search(r'<Picture\s+(?!1>)[^>]+>',base['prompts'][0]):
+    if any('<Picture 1>' not in prompt or re.search(r'<Picture\s+(?!1>)[^>]+>',prompt) for prompt in settings['prompts']):
         raise WorkflowError('1枚の参照を <Picture 1> で明示してください。別の番号は使いません。')
     if settings['profile']=='near720_crop' and settings.get('higher_resolution_risk_accepted') is not True:
         raise WorkflowError('参照LoRA v0.1は544p学習です。1280×736の成功は1例だけで、品質・OOMリスクを確認してください。')
@@ -94,7 +98,7 @@ def verify_vendor():
 
 
 def kit_digest():
-    names=('scripts/colab_workflow.py','scripts/r2v_workflow.py','scripts/r2v_native.py',
+    names=('scripts/colab_workflow.py','scripts/r2v_workflow.py','scripts/r2v_native.py','scripts/serial_queue.py',
            'requirements-r2v.in','requirements-r2v.lock','build-constraints.txt','vendor/modeltc/manifest.json')
     h=hashlib.sha256()
     for name in names:
@@ -219,22 +223,61 @@ def check_probe(info, width, height):
     return {'width':width,'height':height,'frames':124,'fps':24,'container_seconds':duration}
 
 
-def fingerprint(settings):
+def single_fingerprint(settings):
     return hashlib.sha256(json.dumps({'prompt':settings['prompts'][0],'reference_sha256':settings['reference']['sha256'],
                                      'profile':settings['profile'],'seed':settings['seed'],'versions':[BASE_REV,LORA_REV,DIFFUSERS_REV,MODELTC_REV]},
                                      sort_keys=True).encode()).hexdigest()
 
 
+def fingerprint(settings):
+    return serial.request_fingerprint(settings,single_fingerprint)
+
+
+@guard.cloud_operation
+def select_request(settings):
+    settings=validate(settings)
+    state=guard.read_state()
+    legacy=None
+    if state.get('generation_complete'):
+        legacy=dict(complete=True,fingerprint=state.get('fingerprint'),run_id=Path(state['output_dir']).name,
+                    output_dir=state['output_dir'],archive_path=state['archive_path'])
+    return serial.select(guard,settings,fingerprint,mode='r2v',legacy_result=legacy)
+
+
+def current_output(settings):
+    return serial.current_output(guard,validate(settings),fingerprint)
+
+
 @guard.cloud_operation
 def generate(settings):
+    settings=validate(settings)
+    initialize_budget(settings)
+    state=guard.read_state()
+    if not state.get('generation_complete') and not state.get('setup_complete'):raise WorkflowError('SETUP_OKが必要です。')
+    if state.get('setup_complete') and (state.get('kit_digest')!=kit_digest() or state.get('requirements_sha256')!=hashlib.sha256((guard.ROOT/'requirements-r2v.lock').read_bytes()).hexdigest()):raise WorkflowError('セットアップ後にコード・依存が変更されています。')
+    if not state.get('active_queue_id'):
+        settings=select_request.__wrapped__(settings)
+    return serial.run(guard,settings,fingerprint,_queued_one)
+
+
+def _queued_one(settings):
+    state=guard.read_state()
+    if state.get('output_dir'):
+        state.setdefault('run_history',[]).append({k:state.get(k) for k in ('output_dir','archive_path','fingerprint','generation_complete','generation_failed')})
+    for key in ('generation_attempted','generation_complete','generation_failed','output_dir','archive_path','fingerprint'):
+        state.pop(key,None)
+    guard.write_state(state)
+    _generate_one(settings)
+    state=guard.read_state()
+    return dict(complete=True,run_id=Path(state['output_dir']).name,output_dir=state['output_dir'],
+                archive_path=state['archive_path'],fingerprint=fingerprint(settings),mode='r2v')
+
+
+def _generate_one(settings):
     settings=validate(settings)
     verify_vendor()
     initialize_budget(settings)
     state=guard.read_state();request=fingerprint(settings)
-    if state.get('generation_attempted'):
-        if state.get('generation_complete') and state.get('fingerprint')==request:
-            return state['archive_path']
-        raise WorkflowError('このVMでは試作1本の実行許可を消費済みです。再試行・設定変更後の再生成は別の明示承認と新しいVMが必要です。')
     if not state.get('setup_complete'):
         raise WorkflowError('SETUP_OKが必要です。')
     if state.get('kit_digest')!=kit_digest() or state.get('requirements_sha256')!=hashlib.sha256((guard.ROOT/'requirements-r2v.lock').read_bytes()).hexdigest():

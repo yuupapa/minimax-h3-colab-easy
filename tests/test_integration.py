@@ -184,7 +184,7 @@ class ElapsedBudgetChecks(unittest.TestCase):
                   'ELIGIBLE_USE_CONFIRMED', 'IMAGE_USE_CONFIRMED', 'IMAGE_CONTENT_CONFIRMED',
                   'HIGHER_RESOLUTION_RISK_ACCEPTED', 'UPLOAD_REFERENCE')}
         ns = dict(flags, r2v=r, PROFILE='near720_crop', PROMPT=self.settings['prompts'][0],
-                  SEED=42, CU_REMAINING=100., CU_PER_HOUR=6.77, CU_BUDGET=5., GPU_CONNECTED_MINUTES_AGO=0.)
+                  json=json, VIDEO_COUNT=1, PROMPTS_JSON='', NEW_RUN=False, RESUME_FAILED_QUEUE=False, SEED=42, CU_REMAINING=100., CU_PER_HOUR=6.77, CU_BUDGET=5., GPU_CONNECTED_MINUTES_AGO=0.)
         display = types.ModuleType('IPython.display')
         display.Image = lambda **kwargs: None
         display.display = lambda *args: None

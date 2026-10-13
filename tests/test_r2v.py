@@ -50,12 +50,12 @@ class Ref2VAChecks(unittest.TestCase):
                 with self.assertRaises(r.WorkflowError):r.validate(s)
 
     def test_one_five_second_request_only(self):
-        for count,seconds in [(2,5),(40,5),(True,5),(1,6)]:
+        for count,seconds in [(0,5),(101,5),(True,5),(1,6)]:
             s=dict(self.settings,count=count,seconds=seconds)
             with self.assertRaises(r.WorkflowError):r.validate(s)
 
     def test_budget_finite_and_no_purchase_or_extension(self):
-        for key,value in [('cu_budget',6),('cu_budget',101),('cu_rate',float('nan')),('cu_remaining',0)]:
+        for key,value in [('cu_budget',0),('cu_budget',101),('cu_rate',float('nan')),('cu_remaining',0)]:
             with self.subTest(key=key,value=value):
                 s=dict(self.settings);s[key]=value
                 with self.assertRaises(r.WorkflowError):r.validate(s)
@@ -127,17 +127,22 @@ class Ref2VAChecks(unittest.TestCase):
         self.assertNotEqual(r.guard.VENV,colab_workflow.VENV)
 
     def test_failed_attempt_never_regenerates(self):
-        r.guard.write_state({'setup_complete':True,'generation_attempted':True,'generation_failed':True})
-        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'run_waiting') as execute:
-            with self.assertRaisesRegex(r.WorkflowError,'消費済み'):r.generate(self.settings)
+        with patch.object(r.guard,'require_cloud'),patch.object(r.guard,'deadline_remaining',return_value=1000.):
+            r.select_request(self.settings)
+        state=r.guard.read_state();state['generation_queues'][state['active_queue_id']]['status']='failed';r.guard.write_state(state)
+        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'deadline_remaining',return_value=1000.),patch.object(r,'_queued_one') as execute:
+            with self.assertRaisesRegex(r.WorkflowError,'再開'):r.select_request(self.settings)
             execute.assert_not_called()
 
     def test_completed_duplicate_returns_existing_archive(self):
+        out=self.root/'completed';out.mkdir();(out/'delivery_720p.mp4').write_bytes(b'fixture')
+        archive=self.root/'already.zip';archive.write_bytes(b'fixture')
         r.guard.write_state({'generation_attempted':True,'generation_complete':True,'fingerprint':r.fingerprint(self.settings),
-                            'archive_path':'already.zip'})
-        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'run_waiting') as execute:
-            self.assertEqual(r.generate(self.settings),'already.zip');execute.assert_not_called()
-            with self.assertRaises(r.WorkflowError):r.generate(dict(self.settings,seed=43))
+                            'output_dir':str(out),'archive_path':str(archive)})
+        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'deadline_remaining',return_value=1000.),patch.object(r.guard,'run_waiting') as execute:
+            self.assertEqual(r.generate(self.settings),str(archive));execute.assert_not_called()
+            changed=r.select_request(dict(self.settings,seed=43))
+            self.assertEqual(changed['seed'],43)
 
     def test_probe_rejects_704_as_720_and_wrong_frames(self):
         info={'streams':[{'codec_type':'video','width':1280,'height':720,'nb_frames':'124','avg_frame_rate':'24/1'},
@@ -190,7 +195,7 @@ class Ref2VAChecks(unittest.TestCase):
     def test_preflight_failure_blocks_model_download_and_generation(self):
         def fail_preflight(command,label,**kwargs):
             if label=='r2v_api_preflight':raise r.WorkflowError('API mismatch')
-        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'), \
+        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'deadline_remaining',return_value=1000.), \
              patch.object(r.guard,'inspect_resources',return_value={}),patch.object(r.guard,'boot_id',return_value='mock-boot'), \
              patch.object(r.guard,'SCRATCH',self.root/'cache'),patch.object(r.guard,'run_waiting',side_effect=fail_preflight) as execute:
             with self.assertRaisesRegex(r.WorkflowError,'API mismatch'):r.setup(self.settings)
@@ -203,7 +208,7 @@ class Ref2VAChecks(unittest.TestCase):
     def test_changed_environment_lock_blocks_a_new_gpu_attempt(self):
         (self.root/'requirements-r2v.lock').write_text('modified')
         r.guard.write_state({'setup_complete':True,'kit_digest':r.kit_digest(),'requirements_sha256':'0'*64})
-        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'run_waiting') as execute:
+        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'deadline_remaining',return_value=1000.),patch.object(r.guard,'run_waiting') as execute:
             with self.assertRaisesRegex(r.WorkflowError,'変更'):r.generate(self.settings)
             execute.assert_not_called();self.assertFalse(r.guard.read_state().get('generation_attempted'))
 
@@ -217,7 +222,7 @@ class Ref2VAChecks(unittest.TestCase):
             if label=='decode_native':raise r.WorkflowError('Corrupt frame')
         info={'streams':[{'codec_type':'video','width':1280,'height':736,'nb_frames':'124','avg_frame_rate':'24/1'},
                          {'codec_type':'audio'}],'format':{'duration':'5.175'}}
-        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'), \
+        with patch.object(r.guard,'require_cloud'),patch.object(r,'initialize_budget'),patch.object(r.guard,'deadline_remaining',return_value=1000.), \
              patch.object(r.guard,'inspect_resources'),patch.object(r.guard,'boot_id',return_value='mock-boot'), \
              patch.object(r,'probe',return_value=info),patch.object(r.guard,'run_waiting',side_effect=fail_decode) as execute:
             with self.assertRaisesRegex(r.WorkflowError,'Corrupt frame'):r.generate(self.settings)
@@ -225,7 +230,7 @@ class Ref2VAChecks(unittest.TestCase):
             self.assertNotIn('export_exact720',[c.args[1] for c in execute.call_args_list])
             self.assertFalse(list(self.root.glob('*.zip')))
             execute.reset_mock()
-            with self.assertRaisesRegex(r.WorkflowError,'消費済み'):r.generate(self.settings)
+            with self.assertRaisesRegex(r.WorkflowError,'再開'):r.generate(self.settings)
             execute.assert_not_called()
 
 

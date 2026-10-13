@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
-FILES=['scripts/colab_workflow.py','scripts/r2v_workflow.py','scripts/r2v_native.py',
+FILES=['scripts/colab_workflow.py','scripts/r2v_workflow.py','scripts/r2v_native.py','scripts/serial_queue.py',
        'requirements-r2v.in','requirements-r2v.lock','build-constraints.txt','vendor/modeltc/manifest.json',
        'vendor/modeltc/LICENSE','vendor/modeltc/inference_minimax_h3.py',
        'vendor/modeltc/minimax_h3_ref2va_pipeline.py','vendor/modeltc/resolution_util.py']
@@ -15,7 +15,7 @@ def build():
 
 **R2V方式はA10080GBで1本実測。T2V/I2Vとは別のColab VM・Python環境を使用します。** この統合版の依存同期・経過時間補正はオフライン検査のみ。新しい終了補助セルとタイマー満了はGPU未検証です。保存後は必ず「ランタイム → ランタイムを接続解除して削除」を実行し、使用率0・稼働0を画面で確認してください。補助セルの成功表示を停止確認の代わりにしません。
 
-参照画像1枚を人物・物体の意味的参照として渡すRef2VAです。始点画像I2Vとは別です。1本・5秒指定（124フレーム、24fps、約5.17秒）だけを試します。テンプレート文は自分の被写体に合わせて変更します。
+参照画像1枚を人物・物体の意味的参照として渡すRef2VAです。始点画像I2Vとは別です。各動画は5秒指定（124フレーム、24fps、約5.17秒）。1〜100本の有限キューを順に生成します。テンプレート文は自分の被写体に合わせて変更します。VIDEO_COUNTは明示本数、PROMPTS_JSONは文章配列（空なら同文を本数分）、seedは各本で+1。違う文章/画像/seedは新キュー。同じ入力で追加はNEW_RUN、停止/失敗後の未完成分のみ再開はRESUME_FAILED_QUEUEをオンにして入力セルを再実行。完成分は保存セルから取得でき、過去出力を削除しません。今回の連続制御はGPUなしのオフライン検証です。
 
 `near720_crop`: 1280×736生成→上下8pxずつ中心クロップ→**1280×720納品**。縦の約2.17%を失い、再エンコードします。参照LoRA v0.1は544p用で、1280×736は非個人の静止画1枚で実機成功しましたが、別画像・別環境の成功は保証しません。
 
@@ -25,11 +25,11 @@ def build():
 
 A10080GB、RAM約167GiB（空き140以上）、キャッシュ180GiB＋/content25GiB、共有ディスクなら205GiB、ドライバ580以上。モデル約134.13GiB＋参照LoRA約1.29GiBを**クラウドにだけ**取得。別VMと別venvでSGLang版を変更しません。FlashAttention3は使用しません。これらは必要条件の候補で、成功保証ではありません。
 
-上限5CU、入力したCU/hから時間換算し85%で処理停止、100%でGPU終了要求。CUの請求保証ではなく、画面残量・使用率を定期確認してください。初期CUは0なので進みません。GPU接続から入力までの経過分をGPU_CONNECTED_MINUTES_AGOへ入れ、停止枠から差し引きます。本人確認とソース実行承認はGPU割当前に済ませてください。取得が終わらなくても上限を延ばさず停止します。自動終了は未保存ファイルを失います。
+上限CUは残量以内で本人が指定、入力したCU/hから時間換算し85%で処理停止、100%でGPU終了要求。CUの請求保証ではなく、画面残量・使用率を定期確認してください。初期CUは0なので進みません。GPU接続から入力までの経過分をGPU_CONNECTED_MINUTES_AGOへ入れ、停止枠から差し引きます。本人確認とソース実行承認はGPU割当前に済ませてください。取得が終わらなくても上限を延ばさず停止します。自動終了は未保存ファイルを失います。
 
 実測は参照処理・推論・復号合計180.00秒、読込9.76秒、原寸MP4書出し9.05秒、24fps・124フレーム・コンテナ5.175秒。茶トラの毛色・縞を引き継いで背景を変更できましたが、模様・体格・足の形に変化があり、完全一致は保証しません。音声は全デコード済み、聴感評価は未実施。実測と統合差分はdocs/R2V_VALIDATION.mdを参照。
 
-67依存の実機使用lockを同梱し、固定版の同期→API検査→重み取得の順です。セットアップ・生成・保存・GPU終了は別々に確認します。Driveマウント、トンネル、認証トークン、追加購入、40本一括生成は使いません。
+67依存の実機使用lockを同梱し、固定版の同期→API検査→重み取得の順です。セットアップ・生成・保存・GPU終了は別々に確認します。Driveマウント、トンネル、認証トークン、追加購入、指定されていない追加生成は行いません。
 
 ModelTC: https://github.com/ModelTC/Minimax-H3-Turbo/tree/02e26d591f7a04d5d1a074c9566d5dd4f22f6225 （Apache-2.0、原文LICENSEとsha256を同梱）
 Diffusers: https://github.com/huggingface/diffusers/tree/85c9fa4caee33d1c5b473395784471d2d7957c1b （Apache-2.0）
@@ -48,6 +48,10 @@ IMAGE_CONTENT_CONFIRMED = False #@param {type:"boolean"}
 HIGHER_RESOLUTION_RISK_ACCEPTED = False #@param {type:"boolean"}
 PROFILE = "near720_crop" #@param ["near720_crop","544_upscale"]
 PROMPT = "Use the object in <Picture 1> as the subject, keeping its shape and colors. Place it on a sunny sandy beach, a different environment from the reference photo. A gentle moving camera, realistic lighting, soft waves. No speech, music, text or logos." #@param {type:"string"}
+VIDEO_COUNT = 1 #@param {type:"integer"}
+PROMPTS_JSON = "" #@param {type:"string"}
+NEW_RUN = False #@param {type:"boolean"}
+RESUME_FAILED_QUEUE = False #@param {type:"boolean"}
 SEED = 42 #@param {type:"integer"}
 CU_REMAINING = 0.0 #@param {type:"number"}
 CU_PER_HOUR = 0.0 #@param {type:"number"}
@@ -72,13 +76,15 @@ for name,text in EMBEDDED_KIT.items():
     dest=kit/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(text)
 sys.path.insert(0,str(kit/'scripts'))
 import r2v_workflow as r2v
+import json
 import importlib
 r2v=importlib.reload(r2v)
 candidate={'gpu_trial_approved':GPU_TRIAL_APPROVED,'source_execution_accepted':SOURCE_EXECUTION_ACCEPTED,
  'license_accepted':LICENSE_ACCEPTED,'eligible_use_confirmed':ELIGIBLE_USE_CONFIRMED,
  'image_use_confirmed':IMAGE_USE_CONFIRMED,'image_content_confirmed':IMAGE_CONTENT_CONFIRMED,
  'higher_resolution_risk_accepted':HIGHER_RESOLUTION_RISK_ACCEPTED,'profile':PROFILE,
- 'prompts':[PROMPT],'count':1,'seconds':5,'seed':SEED,
+ 'prompts':json.loads(PROMPTS_JSON) if PROMPTS_JSON.strip() else [PROMPT],'count':VIDEO_COUNT,'seconds':5,'seed':SEED,
+ 'new_run':NEW_RUN,'resume_failed_queue':RESUME_FAILED_QUEUE,
  'cu_remaining':CU_REMAINING,'cu_rate':CU_PER_HOUR,'cu_budget':CU_BUDGET,
  'gpu_minutes_before_input':GPU_CONNECTED_MINUTES_AGO}
 r2v.validate(candidate,with_reference=False)
@@ -98,26 +104,31 @@ if _upload or not IMAGE_CONTENT_CONFIRMED:
     IMAGE_CONTENT_CONFIRMED=False
     raise RuntimeError('参照画像を確認し、IMAGE_CONTENT_CONFIRMEDをオン、UPLOAD_REFERENCEをオフにして入力セルだけ再実行。長く待つならGPU終了。')
 candidate['reference']=_ref
-settings=r2v.validate(candidate)
-print('この文章で生成します:',settings['prompts'][0])
+settings=r2v.select_request(candidate)
+NEW_RUN=False
+RESUME_FAILED_QUEUE=False
+print('生成キュー:',settings['count'],'本、開始seed:',settings['seed'],'文章:',settings['prompts'])
 print('INPUT_OK: SETUP/GENERATIONは未実行。文章がフォームと違う場合は生成せず、入力を確定して再実行してください。')
 '''
     setup='''#@title 2. 独立環境・API事前検査・参照重み取得
 if settings is None:raise RuntimeError('INPUT_OKが必要です。')
 r2v.setup(settings)
 '''
-    generate='''#@title 3. 試作1本→正確な720pへ変換・全体デコード
+    generate='''#@title 3. 指定本数を順番に生成→720p・全体デコード
 if settings is None:raise RuntimeError('INPUT_OKが必要です。')
 archive_path=r2v.generate(settings)
 from IPython.display import Video,display
-display(Video(str(Path(r2v.guard.read_state()['output_dir'])/'delivery_720p.mp4'),embed=True))
+current=r2v.current_output(settings)
+print('完成:',current['completed_count'],'/',current['requested_count'],'本（最後の完成動画）')
+display(Video(str(Path(current['output_dir'])/'delivery_720p.mp4'),embed=True))
 print('被写体一致、別背景、動き、破綻と音を本人が確認。ZIPはまだ未保存。')
 '''
     save='''#@title 4. ZIPを端末へ保存（生成映像2版＋測定、参照画像なし）
 from google.colab import files
-state=r2v.guard.read_state()
-if not state.get('generation_complete'):raise RuntimeError('GENERATE_OKが必要です。')
-files.download(state['archive_path'])
+if settings is None:raise RuntimeError('現在のINPUT_OKが必要です。')
+current=r2v.current_output(settings)
+files.download(current['archive_path'])
+print('保存対象:',current['run_id'],current['completed_count'],'/',current['requested_count'],'本')
 print('ダウンロードの開始だけでは保存確認になりません。端末でZIP/MP4を開いて確認。')
 '''
     stop='''#@title 5. 必須: ColabメニューでGPU削除・使用率0確認

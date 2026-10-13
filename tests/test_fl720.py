@@ -88,8 +88,10 @@ class FL720Checks(unittest.TestCase):
                              'requirements_sha256': hashlib.sha256(lock.read_bytes()).hexdigest(),
                              'cu_remaining_at_start': 100.,'active_mode':settings['mode'],
                              'mode_reviewed':True,'active_fingerprint':f.fingerprint(settings),
-                             'last_input_image':settings.get('first_frame')})
+                             'last_input_image':settings.get('first_frame'),'deadline_epoch':10**12})
         f.guard.write_state(state)
+        with patch.object(f.guard,'require_cloud'),patch.object(f.guard,'deadline_remaining',return_value=1000.):
+            f.select_request(settings)
 
     def test_upstream_t2v_parser_gets_zero_images_and_fl_transformer(self):
         upstream = stdlib_upstream()
@@ -121,7 +123,7 @@ class FL720Checks(unittest.TestCase):
                 f.validate(dict(self.settings, **change))
 
     def test_one_five_second_trial_and_fixed_native_profile_only(self):
-        for change in ({'count': 2}, {'count': 40}, {'count': True}, {'seconds': 6}, {'profile': '544_upscale'}):
+        for change in ({'count': 0}, {'count': 101}, {'count': True}, {'seconds': 6}, {'profile': '544_upscale'}):
             with self.subTest(change=change), self.assertRaises(f.WorkflowError):
                 f.validate(dict(self.settings, **change))
 
@@ -247,17 +249,19 @@ class FL720Checks(unittest.TestCase):
         run.assert_not_called()
         self.assertFalse(f.guard.read_state().get('generation_attempted'))
 
-    def test_failed_attempt_cannot_silently_regenerate_or_switch_mode(self):
-        state=f.guard.read_state();state.update(session_failed=True);f.guard.write_state(state)
-        with patch.object(f.guard, 'require_cloud'), patch.object(f, 'initialize_budget'), patch.object(f.guard, 'run_waiting') as run:
-            for s in (self.settings, self.i2v()):
-                with self.assertRaisesRegex(f.WorkflowError, '消費済み'): f.generate(s)
+    def test_failed_queue_cannot_silently_regenerate_and_stale_mode_is_rejected(self):
+        self.ready_generation()
+        state=f.guard.read_state();state['generation_queues'][state['active_queue_id']]['status']='failed';f.guard.write_state(state)
+        with patch.object(f.guard,'require_cloud'),patch.object(f,'initialize_budget'),patch.object(f.guard,'run_waiting') as run:
+            with self.assertRaisesRegex(f.WorkflowError,'再開'):f.generate(self.settings)
+            with self.assertRaisesRegex(f.WorkflowError,'現在の入力'):f.generate(self.i2v())
         run.assert_not_called()
 
     def test_completed_identical_input_returns_existing_file(self):
         output=self.root/'completed';output.mkdir();(output/'delivery_720p.mp4').write_bytes(b'fixture')
         archive=self.root/'existing.zip';archive.write_bytes(b'fixture')
         state=f.guard.read_state()
+        state.update(deadline_epoch=10**12)
         state['runs']={'t2v':{'attempted':True,'complete':True,'fingerprint':f.fingerprint(self.settings),
                               'run_id':'t2v_fixture','archive_path':str(archive),'output_dir':str(output)}}
         f.guard.write_state(state)
@@ -308,7 +312,7 @@ class FL720Checks(unittest.TestCase):
             with self.assertRaisesRegex(f.WorkflowError, 'bad frame'): f.generate(self.settings)
             self.assertEqual([c.args[1] for c in run.call_args_list], ['fl720_generation', 'decode_native'])
             run.reset_mock()
-            with self.assertRaisesRegex(f.WorkflowError, '消費済み'): f.generate(self.settings)
+            with self.assertRaisesRegex(f.WorkflowError, '再開|キュー|現在の入力'): f.generate(self.settings)
             run.assert_not_called()
         self.assertFalse(list(self.root.glob('*.zip')))
         self.assertTrue(f.guard.read_state()['runs']['t2v']['failed'])
@@ -335,7 +339,7 @@ class FL720Checks(unittest.TestCase):
     def test_three_route_candidate_preserves_published_files_and_passes_privacy_audit(self):
         import validate_fl720
         report=validate_fl720.validate()
-        self.assertEqual(report['published_files_preserved_byte_for_byte'],35)
+        self.assertEqual(report['published_files_preserved_byte_for_byte'],28)
         self.assertEqual(report['updated_entry_docs'],2)
         self.assertEqual(report['notebooks'],3)
         self.assertEqual(report['shared_frozen_diffusers_dependencies'],67)
@@ -380,7 +384,7 @@ class FL720Checks(unittest.TestCase):
               'GPU_TRIAL_APPROVED':True,'SOURCE_EXECUTION_ACCEPTED':True,'LICENSE_ACCEPTED':True,
               'ELIGIBLE_USE_CONFIRMED':True,'HIGHER_RESOLUTION_RISK_ACCEPTED':True,
               'GENERATION_MODE':'Image-to-Video','IMAGE_USE_CONFIRMED':True,'IMAGE_CONTENT_CONFIRMED':True,
-              'UPLOAD_FIRST_FRAME':True,'PROMPT':'A red boat slowly moves.','SEED':42,
+              'UPLOAD_FIRST_FRAME':True,'json':json,'VIDEO_COUNT':1,'PROMPTS_JSON':'','NEW_RUN':False,'RESUME_FAILED_QUEUE':False,'PROMPT':'A red boat slowly moves.','SEED':42,
               'CU_REMAINING':100.,'CU_PER_HOUR':6.77,'CU_BUDGET':5.,'GPU_CONNECTED_MINUTES_AGO':0.}
         tail = 'candidate=' + builder.BOOT.split('candidate=',1)[1]
         display = types.ModuleType('IPython.display')

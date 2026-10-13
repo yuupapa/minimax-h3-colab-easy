@@ -42,6 +42,8 @@ class SharedVMChecks(unittest.TestCase):
         state['runs']={'t2v':{'attempted':True,'complete':True,'failed':False,'saved_confirmed':saved,
                              'run_id':'t2v_fixture','fingerprint':f.fingerprint(self.settings),
                              'output_dir':str(out),'archive_path':str(archive)}}
+        queue=state['generation_queues'][state['active_queue_id']]
+        queue['jobs'][0].update(status='complete',result=state['runs']['t2v']);queue['status']='complete'
         f.guard.write_state(state)
         return state['runs']['t2v']
 
@@ -61,15 +63,12 @@ class SharedVMChecks(unittest.TestCase):
         self.assertEqual(state['active_mode'],'t2v')
         self.assertNotIn('runs',state)
 
-    def test_session_scope_cannot_be_broadened_by_a_later_input(self):
-        f.guard.write_state({})
-        only=dict(self.settings,approved_modes=['t2v'])
-        f.initialize_budget(only)
-        before=f.guard.read_state();old=Mock()
-        with self.assertRaisesRegex(f.WorkflowError,'承認モード'):
-            f.arm_budget(self.settings,previous_timer=old)
-        old.cancel.assert_not_called()
-        self.assertEqual(f.guard.read_state(),before)
+    def test_selected_modes_can_change_without_extending_budget(self):
+        before=f.guard.read_state()
+        f.initialize_budget(dict(self.settings,approved_modes=['t2v']))
+        after=f.guard.read_state()
+        self.assertEqual(before['deadline_epoch'],after['deadline_epoch'])
+        self.assertEqual(after['approved_modes'],['t2v'])
 
     def test_unauthorized_second_mode_cannot_activate(self):
         s=dict(self.i2v(),approved_modes=['t2v'])
@@ -94,19 +93,18 @@ class SharedVMChecks(unittest.TestCase):
         for key in ('session_started_epoch','deadline_epoch','shutdown_deadline_epoch','cu_budget'):
             self.assertEqual(before[key],after[key])
 
-    def test_switch_requires_bound_actual_save_confirmation_first(self):
-        self.complete_first(saved=False)
-        state=f.guard.read_state();state['last_input_image']=self.frame;f.guard.write_state(state)
-        before=f.guard.read_state()
-        with self.assertRaisesRegex(f.WorkflowError,'先にt2v'):f.activate_mode(self.i2v())
-        self.assertEqual(before,f.guard.read_state())
+    def test_switch_preserves_unsaved_completed_output(self):
+        first=self.complete_first(saved=False)
+        self.assertTrue(f.activate_mode(self.i2v()))
+        self.assertEqual(f.guard.read_state()['runs']['t2v'],first)
+        self.assertTrue(Path(first['archive_path']).is_file())
 
     def test_wrong_save_id_or_archive_cannot_open_mode_switch(self):
         first=self.complete_first()
         for rid,path in [('i2v_old',first['archive_path']),('t2v_fixture','wrong.zip')]:
             with self.subTest(rid=rid,path=path),self.assertRaisesRegex(f.WorkflowError,'保存確認の対象'):
                 f.confirm_saved(self.settings,run_id=rid,archive_path=path)
-        self.assertFalse(f.guard.read_state()['runs']['t2v']['saved_confirmed'])
+        self.assertFalse(f.guard.read_state()['generation_queues'][f.guard.read_state()['active_queue_id']]['saved_confirmed'])
 
     def test_switch_erases_old_image_and_request_but_preserves_saved_output(self):
         first=self.complete_first(saved=True)
@@ -155,7 +153,7 @@ class SharedVMChecks(unittest.TestCase):
                 'SOURCE_EXECUTION_ACCEPTED':True,'LICENSE_ACCEPTED':True,'ELIGIBLE_USE_CONFIRMED':True,
                 'HIGHER_RESOLUTION_RISK_ACCEPTED':True,'GENERATION_MODE':'Image-to-Video',
                 'IMAGE_USE_CONFIRMED':True,'IMAGE_CONTENT_CONFIRMED':True,'UPLOAD_FIRST_FRAME':True,
-                'PROMPT':'A boat slowly moves.','SEED':42,'CU_REMAINING':97.,'CU_PER_HOUR':6.77,
+                'json':json,'VIDEO_COUNT':1,'PROMPTS_JSON':'','NEW_RUN':False,'RESUME_FAILED_QUEUE':False,'PROMPT':'A boat slowly moves.','SEED':42,'CU_REMAINING':97.,'CU_PER_HOUR':6.77,
                 'CU_BUDGET':5.,'GPU_CONNECTED_MINUTES_AGO':0.}
 
     def test_switch_review_does_not_silently_reuse_old_png(self):
@@ -176,10 +174,10 @@ class SharedVMChecks(unittest.TestCase):
         with patch.dict(sys.modules,{'google.colab':colab,'google.colab.files':files}),contextlib.redirect_stdout(io.StringIO()):
             exec(compile(source,'<save>','exec'),ns)
             self.assertFalse(ns['SAVED_CURRENT_RUN'])
-            self.assertFalse(f.guard.read_state()['runs']['t2v']['saved_confirmed'])
+            self.assertFalse(f.guard.read_state()['generation_queues'][f.guard.read_state()['active_queue_id']]['saved_confirmed'])
             exec(compile(source,'<save>','exec'),ns)
         download.assert_called_once_with(first['archive_path'])
-        self.assertTrue(f.guard.read_state()['runs']['t2v']['saved_confirmed'])
+        self.assertTrue(f.guard.read_state()['generation_queues'][f.guard.read_state()['active_queue_id']]['saved_confirmed'])
 
     def test_save_cell_cannot_download_previous_mode_after_switch(self):
         self.complete_first(saved=True);f.activate_mode(self.i2v())
@@ -200,7 +198,7 @@ class SharedVMChecks(unittest.TestCase):
     def test_failure_aborts_other_mode_without_destroying_completed_run(self):
         first=self.complete_first(saved=True)
         state=f.guard.read_state();state['session_failed']=True;f.guard.write_state(state)
-        with self.assertRaisesRegex(f.WorkflowError,'失敗済み'):f.activate_mode(self.i2v())
+        self.assertTrue(f.activate_mode(self.i2v()))
         self.assertEqual(f.guard.read_state()['runs']['t2v'],first)
 
     def test_one_shared_setup_and_download_for_two_serial_mode_generations(self):
@@ -244,7 +242,9 @@ class SharedVMChecks(unittest.TestCase):
     def test_failed_or_changed_request_in_a_consumed_mode_cannot_retry(self):
         self.complete_first(saved=True)
         for updated in (dict(self.settings,prompts=['A different shot']),dict(self.settings,seed=43)):
-            with self.assertRaisesRegex(f.WorkflowError,'消費済み'):f.select_request(updated)
+            before=f.guard.read_state()['active_queue_id']
+            f.select_request(updated)
+            self.assertNotEqual(before,f.guard.read_state()['active_queue_id'])
 
     def test_original_one_attempt_candidate_state_is_not_migrated_into_new_slots(self):
         f.guard.write_state({'generation_attempted':True,'generation_complete':True})

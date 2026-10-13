@@ -9,7 +9,7 @@ import build_fl720_notebook as builder
 
 ROOT = Path(__file__).resolve().parent.parent
 BASELINE_MANIFEST_SHA = '417e4dcdd1a4d1407335c75849b934b4225dbd9faff94f6d6223e63bdcf8720f'
-UPDATED_ENTRY_DOCS = {'README.md', 'AGENTS.md'}
+UPDATED_ENTRY_DOCS = {'README.md', 'AGENTS.md', 'MiniMax_H3_R2V_720p_Colab.ipynb', 'scripts/r2v_workflow.py', 'scripts/build_r2v_notebook.py', 'scripts/validate_integration.py', 'tests/test_r2v.py', 'tests/test_integration.py', 'docs/R2V_VALIDATION.md'}
 
 
 def validate():
@@ -30,7 +30,7 @@ def validate():
                  'MiniMax_H3_T2V_I2V_720p_DEV_Colab.ipynb'):
         assert (ROOT / name).is_file()
         assert 'https://colab.research.google.com/github/yuupapa/minimax-h3-colab-easy/blob/main/' + name in readme
-    assert 'SameVM mode switch and expiry shutdown remain GPU-unverified.' in (ROOT / 'AGENTS.md').read_text()
+    assert 'offline mock regression evidence only' in (ROOT/'AGENTS.md').read_text()
     nb = json.loads((ROOT / 'MiniMax_H3_T2V_I2V_720p_DEV_Colab.ipynb').read_text())
     assert nb['nbformat'] == 4 and len(nb['cells']) == 6
     assert set(nb['metadata']) == {'colab', 'kernelspec'}
@@ -72,10 +72,10 @@ def validate():
     assert all(isinstance(n, ast.Expr) and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)
                and n.value.func.id == 'print' for n in stop.body), 'Final cell must only explain menu deletion'
     return {'files_checked': previous['files_checked'], 'notebooks': 3, 'code_cells_checked': 15,
-            'published_files_preserved_byte_for_byte': 35, 'updated_entry_docs': 2, 'existing_t2v_i2v_dependencies': 234,
+            'published_files_preserved_byte_for_byte': 28, 'updated_entry_docs': 2, 'existing_t2v_i2v_dependencies': 234,
             'shared_frozen_diffusers_dependencies': 67, 'outputs_in_distribution': 0,
             'new_fl720_status': 'T2V/I2V one core GPU trial each passed in separate cleanVMs; shared switch/default UI/expiry shutdown unverified',
-            'proposal_cu_single_vm_total': 5.0, 'max_per_mode_outputs':1, 'dependency_setup_and_weight_downloads':1}
+            'proposal_cu_single_vm_total': 5.0, 'max_outputs_per_queue':100, 'dependency_setup_and_weight_downloads':1}
 
 
 if __name__ == '__main__':

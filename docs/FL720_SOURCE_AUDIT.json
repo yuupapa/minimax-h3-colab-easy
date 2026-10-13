@@ -50,7 +50,6 @@
   "environment_api_import_gpu_tested_for_fl720": true,
   "shared_67_dependency_lock_sha256": "57d89223bdebf8f7ab0de2bdc8fc1c7ff8b52e9987aa477c2646184ea6b4670b",
   "model_load_processes": 2,
-  "max_outputs_per_mode": 1,
   "proposed_single_vm_total_cu": 5.0,
   "model_load_processes_planned": 2,
   "model_load_processes_actual": 2,
@@ -115,5 +114,9 @@
     }
   },
   "trial_image_upload_ui": "I2V used standard Files pane plus bounded original normalization core in a temporary private cell; default outputframe chooser not GPU-tested",
-  "qualitative_limits": "T2V background/fur softness; I2V tail-tip edge clipping/detail changes; real-time fine motion and subjective audio not assessed"
+  "qualitative_limits": "T2V background/fur softness; I2V tail-tip edge clipping/detail changes; real-time fine motion and subjective audio not assessed",
+  "continuous_controller": "finite_queues1..100; input changes create new queues; exact reruns reuse; explicit failed queue resume skips completed",
+  "continuous_controller_gpu_tested": false,
+  "max_outputs_per_queue": 100,
+  "continuous_control_validation": "offline mocked controller/process tests; native model bytes and pins unchanged"
 }

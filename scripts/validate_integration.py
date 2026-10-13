@@ -85,7 +85,7 @@ def validate(root=ROOT):
             ast.parse(source(cell))
     first = ast.parse(source(ref['cells'][1]))
     embedded = assignment(first, 'EMBEDDED_KIT')
-    expected = {'scripts/colab_workflow.py', 'scripts/r2v_workflow.py', 'scripts/r2v_native.py',
+    expected = {'scripts/colab_workflow.py', 'scripts/r2v_workflow.py', 'scripts/r2v_native.py', 'scripts/serial_queue.py',
                 'requirements-r2v.in', 'requirements-r2v.lock', 'build-constraints.txt',
                 'vendor/modeltc/manifest.json', 'vendor/modeltc/LICENSE', 'vendor/modeltc/inference_minimax_h3.py',
                 'vendor/modeltc/minimax_h3_ref2va_pipeline.py', 'vendor/modeltc/resolution_util.py'}

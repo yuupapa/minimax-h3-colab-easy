@@ -1,4 +1,4 @@
-"""Experimental cloud-only FL2VA 720p workflow; GPU-unverified. No ML imports at module import."""
+"""Cloud-only FL2VA 720p with finite sequential queues; queue control offline-tested. No ML imports at module import."""
 import hashlib
 import importlib.util
 import json
@@ -10,6 +10,7 @@ import struct
 import time
 import uuid
 import zipfile
+import serial_queue as serial
 
 KIT = Path(__file__).resolve().parent.parent
 # Isolated module instance: never mutate the published workflow's globals.
@@ -21,6 +22,7 @@ guard.SCRATCH = Path('/mnt/local-scratch/h3-fl720-dev') if Path('/mnt/local-scra
 guard.VENV = guard.ROOT/'venv'
 guard.STATE = guard.ROOT/'state.json'
 guard.KIT = KIT
+serial.install_budget_policy(guard)
 WorkflowError = guard.WorkflowError
 BASE_REV = '42ed227ee7df40d41602854ae760620d6eb651fe'
 DIFFUSERS_REV = '85c9fa4caee33d1c5b473395784471d2d7957c1b'
@@ -38,8 +40,9 @@ PROFILE = {'megapixels':0.9,'native':[1280,736], 'delivery':[1280,720],
 
 def budget_settings(settings):
     # Reuse ONLY the budget validator; the model task is built separately below.
-    return {k:settings[k] for k in ('license_accepted','eligible_use_confirmed','prompts','count','seconds',
+    result = {k:settings[k] for k in ('license_accepted','eligible_use_confirmed','prompts','count','seconds',
                                   'seed','cu_remaining','cu_rate','cu_budget')}
+    return dict(result, count=1, prompts=[settings['prompts'][0]])
 
 
 def validate(settings, *, with_image=True):
@@ -50,13 +53,14 @@ def validate(settings, *, with_image=True):
             raise WorkflowError(f'{k}: 本人の確認が必要です。GPU未承認では実行しません。')
     approved=settings.get('approved_modes')
     if not isinstance(approved,list) or not approved or any(not isinstance(m,str) or m not in ('t2v','i2v') for m in approved) or len(approved)!=len(set(approved)):
-        raise WorkflowError('今回承認したモードをapproved_modesへ明示してください。各モード1本だけです。')
+        raise WorkflowError('今回承認したモードをapproved_modesへ明示してください。今回使用するモードを選択してください。')
     if settings.get('mode') not in approved:
         raise WorkflowError('選択モードのGPU試験は未承認です。')
     if settings.get('mode') not in ('t2v','i2v'):
         raise WorkflowError('FL720はT2V/I2V専用です。R2Vは別ノートブックです。')
-    if settings.get('count') != 1 or isinstance(settings.get('count'),bool) or settings.get('seconds') != 5:
-        raise WorkflowError('FL720試験は1モードにつき動画1本、指定5秒だけです。I2Vは始点画像1枚です。')
+    serial.validate_count(settings, WorkflowError)
+    if settings.get('seconds') != 5:
+        raise WorkflowError('720pは指定5秒です。1キューの始点画像は1枚です。')
     if settings.get('profile')!='native736_crop720':
         raise WorkflowError('生成1280×736→上下8px crop→1280×720だけです。544拡大は行いません。')
     guard.validate_inputs(budget_settings(settings))
@@ -102,7 +106,7 @@ def verify_vendor():
 
 
 def kit_digest():
-    names=('scripts/colab_workflow.py','scripts/fl720_workflow.py','scripts/fl720_native.py',
+    names=('scripts/colab_workflow.py','scripts/fl720_workflow.py','scripts/fl720_native.py','scripts/serial_queue.py',
            'requirements-r2v.lock','build-constraints.txt','vendor/modeltc/manifest.json')
     h=hashlib.sha256()
     for name in names:
@@ -134,8 +138,6 @@ def initialize_budget(settings, *, allow_expired=False):
     settings=validate(settings,with_image=False)
     old=guard.read_state()
     modes=sorted(settings['approved_modes'])
-    if old.get('approved_modes') is not None and old['approved_modes']!=modes:
-        raise WorkflowError('同じVMの承認モードは変更できません。上限・締切を引き継いで停止してください。')
     if old.get('generation_attempted') and not old.get('runs'):
         raise WorkflowError('旧候補の実行状態を新しい試験に流用しません。保存してGPUを終了してください。')
     state=guard.initialize_budget(budget_settings(settings),allow_expired=True)
@@ -249,12 +251,16 @@ def check_probe(info, width, height):
     return {'width':width,'height':height,'frames':124,'fps':24,'container_seconds':duration}
 
 
-def fingerprint(settings):
+def single_fingerprint(settings):
     value={'mode':settings['mode'],'prompt':settings['prompts'][0],
            'profile':settings['profile'],'seed':settings['seed'],
            'versions':[BASE_REV,LORA_REV,DIFFUSERS_REV,MODELTC_REV]}
     if settings['mode']=='i2v':value['first_frame_sha256']=settings['first_frame']['sha256']
     return hashlib.sha256(json.dumps(value,sort_keys=True).encode()).hexdigest()
+
+
+def fingerprint(settings):
+    return serial.request_fingerprint(settings, single_fingerprint)
 
 
 def require_session_scope(settings):
@@ -270,12 +276,10 @@ def activate_mode(settings):
     guard.deadline_remaining()
     state=require_session_scope(settings)
     mode=settings['mode'];previous=state.get('active_mode')
-    if state.get('session_failed'):
-        raise WorkflowError('このVMの試験は失敗済みです。自動再試行せず保存・GPU終了してください。')
     if mode==previous:return False
-    previous_run=state.get('runs',{}).get(previous,{})
-    if previous_run.get('attempted') and not previous_run.get('saved_confirmed'):
-        raise WorkflowError(f"先に{previous}の実際のZIP/MP4保存を確認してください。モード切替はまだ行いません。")
+    queue=state.get('generation_queues',{}).get(state.get('active_queue_id'),{})
+    if queue.get('status')=='running':
+        raise WorkflowError('実行中です。先に実行を中断してください。')
     state.update(active_mode=mode,active_fingerprint=None,mode_reviewed=previous is None)
     state.pop('last_input_image',None)
     guard.write_state(state)
@@ -286,7 +290,7 @@ def activate_mode(settings):
 def confirm_mode(settings):
     validate(settings,with_image=False)
     state=require_session_scope(settings)
-    if state.get('active_mode')!=settings['mode'] or state.get('session_failed'):
+    if state.get('active_mode')!=settings['mode']:
         raise WorkflowError('現在のモードが一致しません。入力セルで切替内容を確認してください。')
     state['mode_reviewed']=True;guard.write_state(state)
 
@@ -296,21 +300,16 @@ def select_request(settings):
     settings=validate(settings)
     guard.deadline_remaining()
     state=require_session_scope(settings);mode=settings['mode'];request=fingerprint(settings)
-    if state.get('session_failed') or state.get('active_mode')!=mode or not state.get('mode_reviewed'):
+    if state.get('active_mode')!=mode or not state.get('mode_reviewed'):
         raise WorkflowError('現在のモードを入力セルで確認してください。')
     if mode=='i2v' and state.get('last_input_image')!=settings['first_frame']:
         raise WorkflowError('現在のモードでアップロード・確認した新しい始点画像だけを使います。')
-    previous=state.get('runs',{}).get(mode,{})
-    if previous.get('attempted') and (not previous.get('complete') or previous.get('fingerprint')!=request):
-        raise WorkflowError('このモードの1本許可は消費済みです。設定変更や再試行を自動実行しません。')
-    state['active_fingerprint']=request;guard.write_state(state)
-    return settings
+    return serial.select(guard, settings, fingerprint, mode=mode,
+                         legacy_result=state.get('runs',{}).get(mode))
 
 
 def require_active_request(settings):
     state=require_session_scope(settings)
-    if state.get('session_failed'):
-        raise WorkflowError('このVMの試験許可は失敗で消費済みです。保存してGPUを終了してください。')
     if state.get('active_mode')!=settings['mode'] or not state.get('mode_reviewed') or state.get('active_fingerprint')!=fingerprint(settings):
         raise WorkflowError('現在の入力とモードが一致しません。INPUT_OKからやり直してください。')
     if settings['mode']=='i2v' and state.get('last_input_image')!=settings['first_frame']:
@@ -321,21 +320,16 @@ def require_active_request(settings):
 def current_output(settings):
     guard.require_cloud()
     settings=validate(settings)
-    state=require_active_request(settings)
-    entry=state.get('runs',{}).get(settings['mode'],{})
-    if not entry.get('complete') or entry.get('fingerprint')!=fingerprint(settings):
-        raise WorkflowError('このモード・入力のGENERATE_OKが必要です。以前の出力は選びません。')
-    if not Path(entry['archive_path']).is_file() or not (Path(entry['output_dir'])/'delivery_720p.mp4').is_file():
-        raise WorkflowError('このモードの出力実ファイルがありません。保存済みとは宣言しません。')
-    return dict(entry,mode=settings['mode'])
+    require_active_request(settings)
+    return serial.current_output(guard,settings,fingerprint)
 
 
 @guard.cloud_operation
 def confirm_saved(settings, *, run_id, archive_path):
     entry=current_output(settings)
     if (run_id,archive_path)!=(entry['run_id'],entry['archive_path']):
-        raise WorkflowError('保存確認の対象が現在のmode/run ID/ZIPと異なります。旧確認は使いません。')
-    state=guard.read_state();state['runs'][settings['mode']]['saved_confirmed']=True
+        raise WorkflowError('保存確認の対象が現在のキュー/ZIPと異なります。')
+    state=guard.read_state();state['generation_queues'][entry['queue_id']]['saved_confirmed']=True
     guard.write_state(state)
     return entry
 
@@ -343,16 +337,34 @@ def confirm_saved(settings, *, run_id, archive_path):
 @guard.cloud_operation
 def generate(settings):
     settings=validate(settings)
+    initialize_budget(settings)
+    state=require_active_request(settings)
+    if not state.get('active_queue_id'):
+        settings=serial.select(guard,settings,fingerprint,mode=settings['mode'],legacy_result=state.get('runs',{}).get(settings['mode']))
+    if serial.active(guard,settings,fingerprint)[1]['status']!='complete':
+        if not state.get('setup_complete'):raise WorkflowError('SETUP_OKが必要です。')
+        if state.get('kit_digest')!=kit_digest() or state.get('requirements_sha256')!=hashlib.sha256((guard.ROOT/'requirements-r2v.lock').read_bytes()).hexdigest():raise WorkflowError('セットアップ後にコード・依存が変更されています。')
+    return serial.run(guard,settings,fingerprint,_queued_one)
+
+
+def _queued_one(settings):
+    state=guard.read_state();mode=settings['mode']
+    previous=state.setdefault('runs',{}).get(mode)
+    if previous:
+        state.setdefault('run_history',[]).append(previous)
+    state['runs'][mode]={}
+    state['active_fingerprint']=fingerprint(settings)
+    state.pop('session_failed',None)
+    guard.write_state(state)
+    _generate_one(settings)
+    return dict(guard.read_state()['runs'][mode],mode=mode)
+
+
+def _generate_one(settings):
+    settings=validate(settings)
     verify_vendor()
     initialize_budget(settings)
     state=require_active_request(settings);request=fingerprint(settings);mode=settings['mode']
-    prior=state.get('runs',{}).get(mode,{})
-    if prior.get('attempted'):
-        if prior.get('complete') and prior.get('fingerprint')==request:
-            output=current_output(settings)
-            print('ALREADY_COMPLETE:',mode,output['run_id'],'既存出力。追加生成なし。')
-            return output['archive_path']
-        raise WorkflowError('このモードの1本許可は消費済みです。自動再試行や追加生成はしません。')
     if not state.get('setup_complete'):
         raise WorkflowError('SETUP_OKが必要です。')
     if state.get('kit_digest')!=kit_digest() or state.get('requirements_sha256')!=hashlib.sha256((guard.ROOT/'requirements-r2v.lock').read_bytes()).hexdigest():
@@ -397,7 +409,7 @@ def generate(settings):
         state=guard.read_state();state['runs'][mode].update(complete=True,archive_path=str(archive));guard.write_state(state)
         print('GENERATE_OK:',mode,run_id,'保存完了と画質の確認はまだです。');return str(archive)
     except BaseException:
-        state=guard.read_state();state['runs'][mode].update(failed=True);state['session_failed']=True;guard.write_state(state)
+        state=guard.read_state();state['runs'][mode].update(failed=True);guard.write_state(state)
         print('GENERATION_FAILED: 自動再生成・解像度変更はしません。ログを保存しGPUを終了してください。')
         raise
 

@@ -3,14 +3,14 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FILES = ['scripts/colab_workflow.py', 'scripts/fl720_workflow.py', 'scripts/fl720_native.py',
+FILES = ['scripts/colab_workflow.py', 'scripts/fl720_workflow.py', 'scripts/fl720_native.py', 'scripts/serial_queue.py',
          'requirements-r2v.lock', 'build-constraints.txt', 'vendor/modeltc/manifest.json',
          'vendor/modeltc/LICENSE', 'vendor/modeltc/inference_minimax_h3.py',
          'vendor/modeltc/minimax_h3_ref2va_pipeline.py', 'vendor/modeltc/resolution_util.py']
 
 INTRO = '''# MiniMax H3 T2V / I2V・1280×720候補
 
-**T2V/I2Vは各1本・別クリーンVMのcore生成・端末保存・全デコード・GPU削除を確認済みです。既定UI・同VM切替・期限満了による終了はGPU未検証の試験版です。新しいGPU試験には本人の目的/本数/CU上限の確認が必要です。** 既存Easy 544p・R2V720は維持しています。公開Easy/R2Vとは別のColab VM・venv・キャッシュ・状態を使い、1VMの共有予算で、承認した各モードを指定5秒・1本ずつ試します。依存導入・モデル/LoRA取得は1回。T2V保存後にI2Vへ手動で切り替え、自動2本実行や40本生成は行いません。生成時のモデル読込は各モードで別々です。
+**T2V/I2Vは各1本・別クリーンVMのcore生成・端末保存・全デコード・GPU削除を確認済みです。既定UI・同VM切替・期限満了による終了はGPU未検証の試験版です。GPU使用は今回の目的/本数/CU上限の範囲です。連続制御の更新はGPUなしのオフライン検証です。** 既存Easy 544p・R2V720は維持しています。公開Easy/R2Vとは別のColab VM・venv・キャッシュ・状態を使い、1VMの共有予算で、承認した各モードを指定5秒・明示した本数だけ順に生成します。依存導入・モデル/LoRA取得は1回。入力を変えて次のキューへ進めます。無制限実行はせず、VIDEO_COUNTで指定した1〜100本だけ生成します。生成時のモデル読込は各モードで別々です。
 
 T2Vは文章だけ、I2Vは始点画像1枚と動きの文章です。意味的参照を別場面へ持ち込むR2Vとは異なります。画像アップロード後は内容・向きの確認で必ず一度停止します。フォームの値が反映されない場合があるため、「この文章で生成します」を実際に読んでから生成します。
 
@@ -22,13 +22,15 @@ R2V実機使用の67依存lock、H3・Diffusers・ModelTC固定ソースを再�
 
 **同VMで2モード合計5CUは未完了の計画値です。実際のT2V/I2V試験は別クリーンVMでした。** 新しい試験は目的/本数/上限を本人が判断し、実測費用や完了保証として扱いません。 残量と実際のCU/hを確認し、本人承認なしに接続しません。6.77CU/hなら合計5CUは約44.31分、処理期限は85%の約37.67分。モード切替・保存・待機もこの共通期限へ含め、モードごとに枠を作り直しません。接続から入力までの経過分を差し引きます。再入力で締切を延長せず、失敗後の自動再試行・解像度低下・別LoRAへの変更はしません。タイマーは請求保証ではなく、満了時の切断はGPU未検証で一時ファイルが消えます。
 
-承認された全モードを保存した後、または失敗・中断時は必ず **「ランタイム → ランタイムを接続解除して削除」** を実行し、ライブ画面でCU/h0・稼働0を確認。終了補助は追加せず、ブラウザを閉じる・子プロセス終了・成功表示をGPU停止の証拠にしません。
+作業を終える前・CU期限に近づいた時は完成分を保存し、必ず **「ランタイム → ランタイムを接続解除して削除」** を実行し、ライブ画面でCU/h0・稼働0を確認。終了補助は追加せず、ブラウザを閉じる・子プロセス終了・成功表示をGPU停止の証拠にしません。
 
 ModelTC仕様: https://github.com/ModelTC/Minimax-H3-Turbo/blob/02e26d591f7a04d5d1a074c9566d5dd4f22f6225/README.md
 LoRA: https://huggingface.co/lightx2v/Minimax-h3-Turbo/blob/3ec17a324ced54151364f24f8b5fb6bf7e26414f/minimax_h3_fl2v_turbo_4step_v1.0_768p_bf16.safetensors
 LoRA SHA256: 1bdabc2e9fce20b1db563b96bcf6e46adcad4c1964f423676436bf266cc7416c （T2V試験のColab取得時に実物照合済み。Macでは取得しません）
 
 ModelTCとLoRAはApache-2.0、H3 Community License・AUPは継続。固定ソース実行、H3の条件、画像送信の判断を本人が行い、新規同意は初期オフです。
+
+VIDEO_COUNTで有限本数、PROMPTS_JSONで文章配列（空ならPROMPTを本数分）、seedは1本ごとに+1。違う入力は新しいキュー。同じ入力の生成セル再実行は既存結果を返します。同じ入力で追加したい場合はNEW_RUN、停止/失敗した同じキューの未完成分だけを再開する場合はRESUME_FAILED_QUEUEをオンにし、入力セルだけ再実行します。完成分と過去の出力は消しません。CU上限は残量以内で指定し、入力やモード変更で期限を延長しません。GPU上での連続制御は未検証です。
 
 T2V/I2V実測: conditioning/denoise/decode215.306/182.119秒、ロード9.679/10.003秒、native encode9.786/8.714秒、GPU確保70.89/76.52GiB・予約73.57/78.62GiB、RSS141.48/77.09GiB。1280×736からクロップした720p、124frames/24fps、5.175秒。猫の動きは見える一方、背景/毛並みににじみがあり、I2Vでは始点の猫/ポーチと歩行・停止・顔向けを確認しましたが、尾の上端切れや細部変化があります。音の聴感は未評価。既定フォームのままのGPU試験ではありません。詳細はdocs/FL720_CANDIDATE.md。
 
@@ -38,7 +40,7 @@ GPU接続前に入力値をソースへ設定して確認し、UIのfillだけ�
 
 '''
 
-INPUT = '''#@title 1. 未承認試験の設定（許可が出るまでGPUへ接続しない）
+INPUT = '''#@title 1. 入力・本数・CU上限（設定はGPU接続前に準備）
 GPU_TRIAL_APPROVED = False #@param {type:"boolean"}
 T2V_TRIAL_APPROVED = False #@param {type:"boolean"}
 I2V_TRIAL_APPROVED = False #@param {type:"boolean"}
@@ -52,6 +54,10 @@ IMAGE_USE_CONFIRMED = False #@param {type:"boolean"}
 IMAGE_CONTENT_CONFIRMED = False #@param {type:"boolean"}
 UPLOAD_FIRST_FRAME = False #@param {type:"boolean"}
 PROMPT = "A small red sailboat slowly glides across a calm lake. A steady realistic shot, gentle ripples and soft wind. No people, speech, music, text or logos." #@param {type:"string"}
+VIDEO_COUNT = 1 #@param {type:"integer"}
+PROMPTS_JSON = "" #@param {type:"string"}
+NEW_RUN = False #@param {type:"boolean"}
+RESUME_FAILED_QUEUE = False #@param {type:"boolean"}
 SEED = 42 #@param {type:"integer"}
 CU_REMAINING = 0.0 #@param {type:"number"}
 CU_PER_HOUR = 0.0 #@param {type:"number"}
@@ -78,6 +84,7 @@ for name,text in EMBEDDED_KIT.items():
     dest=kit/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(text)
 sys.path.insert(0,str(kit/'scripts'))
 import fl720_workflow as fl720
+import json
 import importlib
 fl720=importlib.reload(fl720)
 candidate={'gpu_trial_approved':GPU_TRIAL_APPROVED,'source_execution_accepted':SOURCE_EXECUTION_ACCEPTED,
@@ -86,7 +93,8 @@ candidate={'gpu_trial_approved':GPU_TRIAL_APPROVED,'source_execution_accepted':S
  'approved_modes':[mode for mode,ok in (('t2v',T2V_TRIAL_APPROVED),('i2v',I2V_TRIAL_APPROVED)) if ok],
  'mode':'t2v' if GENERATION_MODE=='Text-to-Video' else 'i2v',
  'image_use_confirmed':IMAGE_USE_CONFIRMED,'image_content_confirmed':IMAGE_CONTENT_CONFIRMED,
- 'profile':'native736_crop720','prompts':[PROMPT],'count':1,'seconds':5,'seed':SEED,
+ 'profile':'native736_crop720','prompts':json.loads(PROMPTS_JSON) if PROMPTS_JSON.strip() else [PROMPT],'count':VIDEO_COUNT,'seconds':5,'seed':SEED,
+ 'new_run':NEW_RUN,'resume_failed_queue':RESUME_FAILED_QUEUE,
  'cu_remaining':CU_REMAINING,'cu_rate':CU_PER_HOUR,'cu_budget':CU_BUDGET,
  'gpu_minutes_before_input':GPU_CONNECTED_MINUTES_AGO}
 fl720.validate(candidate,with_image=False)
@@ -120,7 +128,9 @@ if candidate['mode']=='i2v':
 elif _upload:
     raise RuntimeError('T2Vでは画像をアップロードしません。Image-to-Videoを明示的に選んでください。')
 settings=fl720.select_request(candidate)
-print('この文章で生成します:',settings['prompts'][0])
+NEW_RUN=False
+RESUME_FAILED_QUEUE=False
+print('生成キュー:',settings['count'],'本、開始seed:',settings['seed'],'文章:',settings['prompts'])
 print('INPUT_OK:',settings['mode'],'生成1280×736 / 納品1280×720。セットアップ・生成はまだです。')
 '''
 
@@ -129,17 +139,17 @@ if settings is None:raise RuntimeError('INPUT_OKが必要です。')
 fl720.setup(settings)
 '''
 
-GENERATE = '''#@title 3. 指定5秒1本→720pクロップ・全デコード
+GENERATE = '''#@title 3. 指定本数を順番に生成→720p・全デコード
 if settings is None:raise RuntimeError('INPUT_OKが必要です。')
 archive_path=fl720.generate(settings)
 from IPython.display import Video,display
 current=fl720.current_output(settings)
-print('表示対象:',current['mode'],current['run_id'])
+print('表示対象:',current['mode'],current['run_id'],current['completed_count'],'/',current['requested_count'],'本（最後の完成動画）')
 display(Video(str(Path(current['output_dir'])/'delivery_720p.mp4'),embed=True))
 print('文章・I2V始点画像の反映、クロップ、動き・破綻・音を本人が確認。保存はまだです。')
 '''
 
-SAVE = '''#@title 4. 現在のモード/run IDのZIP保存・次モードへの保存確認
+SAVE = '''#@title 4. 現在のキューの完成分ZIP保存（停止・失敗時も使用可）
 SAVED_CURRENT_RUN = False #@param {type:"boolean"}
 if settings is None:raise RuntimeError('現在のINPUT_OKが必要です。旧出力は保存対象にしません。')
 current=fl720.current_output(settings)
@@ -155,7 +165,7 @@ elif not SAVED_CURRENT_RUN:
     print('SAVE_WAIT: 実際の保存が終わるまで次のモードを開始しません。')
 else:
     fl720.confirm_saved(settings,run_id=_target[1],archive_path=_target[2])
-    print('SAVED_CONFIRMED:',_target[0],_target[1],'次の承認済みモードへ切替可能。GPUは割当中で、共有CUを消費します。')
+    print('SAVED_CONFIRMED:',_target[0],_target[1],'保存確認済み。次の入力でもGPUは割当中で、共有CUを消費します。')
 '''
 
 
